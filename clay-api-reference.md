@@ -39,6 +39,9 @@ Cookie expires every few weeks — refresh manually. No Keychain, no browser aut
 | Instantly: Update Lead | `instantly-v2-update-lead` | `70cda03a-a576-4a6c-b3b3-55e241f828b5` |
 | Lookup Single Row | `lookup-row-in-other-table` | `4299091f-3cd3-4d68-b198-0143575f471d` |
 | Lookup Multiple Rows | `lookup-multiple-rows-in-other-table` | `4299091f-3cd3-4d68-b198-0143575f471d` |
+| LeadMagic: Find Work Email | `leadmagic-find-work-email` | `edb58209-a62d-42be-992a-e41b87eeacc2` |
+| Prospeo: Find Work Email | `prospeo-find-work-email-v2` | `48a31bbb-63e6-4461-8a62-d88bb2cd6b0f` |
+| FindyMail: Find Work Email | `findymail-find-work-email` | `9515bb04-4267-4074-94eb-653545c3c38f` |
 
 To find other action package IDs:
 ```python
@@ -105,12 +108,12 @@ body = {
         "actionPackageId": "67ba01e9-1898-4e7d-afe7-7ebe24819a57",     # same for all AI columns
         "actionVersion": 1,
         "authAccountId": "YOUR_AUTH_ACCOUNT_ID",                     # required — pick from Known Auth Accounts table
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},                            # ⚠ MUST be "text", NOT "json" — "json" works via API but breaks Clay UI ("Could not find properties for data type json")
         "inputsBinding": [
             {"name": "useCase",      "formulaText": '"claygent"'},      # or "use-ai" for Create Content
             {"name": "model",        "formulaText": '"gpt-4.1-nano"'},  # see model table above
             {"name": "prompt",       "formulaText": '"Do X from " + {{f_input_field}}'},
-            # For structured output — add these two:
+            # For structured output — add these two (REQUIRED for ?.key extractors to work):
             {"name": "answerSchemaType", "formulaMap": {
                 "type": '"json"',
                 "jsonType": '"JSONSchema"',
@@ -123,7 +126,7 @@ body = {
                     "required": ["field_1", "field_2"]
                 }))
             }},
-            {"name": "_metadata", "formulaMap": {"modelSource": "user"}},
+            {"name": "_metadata", "formulaMap": {"modelSource": '"user"'}},
         ]
     }
 }
@@ -148,8 +151,10 @@ clay.run_column(TABLE_ID, [ai_field_id], record_ids=RECORD_IDS)
 - `actionKey` must be `"use-ai"` — `"ai"` silently drops all inputs
 - `authAccountId` is required — without it the column never runs
 - `answerSchemaType` uses `formulaMap` not `formulaText` — `formulaText` silently fails
-- `jsonSchema` value is **double JSON-encoded**: `json.dumps(json.dumps(schema))`
-- `_metadata` with `modelSource: "user"` is required when using `answerSchemaType`
+- `jsonSchema` value is **double JSON-encoded**: `json.dumps(json.dumps(schema))` — single encoding produces a dict where Clay expects a string; column creates OK but never runs
+- `_metadata` with `modelSource: '"user"'` (inner quotes!) is required when using `answerSchemaType`
+- `dataTypeSettings` must be `{"type": "text"}` — `{"type": "json"}` breaks Clay UI rendering
+- `answerSchemaType` + `_metadata` are REQUIRED for `?.key` extractors to work — without them, Clay shows "Unable to parse output schema" even if the column was created successfully
 - `systemPrompt` must be < ~1,000 chars — put long instructions in `prompt` instead
 - For Claygent: expect 1-2 min per record (web research). For Create Content: seconds.
 
@@ -282,7 +287,7 @@ Keep `systemPrompt` to ~500-1,000 chars max. Put the full instructions in `promp
     "typeSettings": {
         "actionKey": "enrich-company-with-mixrank-v2",
         "actionPackageId": "e251a70e-46d7-4f3a-b3ef-a211ad3d8bd2",
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "inputsBinding": [
             # ⚠️ Input name is "company_identifier", NOT "url"
             {"name": "company_identifier", "formulaText": ref("Company URL")}
@@ -326,7 +331,7 @@ Keep `systemPrompt` to ~500-1,000 chars max. Put the full instructions in `promp
     "typeSettings": {
         "actionKey": "enrich-person",   # find via search_enrichments("enrich person")
         "actionPackageId": "<pkg_id>",  # from search_enrichments result
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "inputsBinding": [
             # ⚠️ Input name is "person_identifier" — NOT linkedin_url, url, profile_url
             {"name": "person_identifier", "formulaText": ref(f_linkedin_url)},
@@ -383,7 +388,7 @@ Use `mappedResultPath` columns as inputs to downstream action columns (e.g., Enr
     "typeSettings": {
         "actionKey": "use-ai",
         "actionPackageId": "67ba01e9-1898-4e7d-afe7-7ebe24819a57",
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "authAccountId": "YOUR_GEMINI_AUTH_ACCOUNT_ID",   # ← top level, not in inputsBinding
         "inputsBinding": [
             {"name": "useCase",      "formulaText": '"use-ai"'},
@@ -434,7 +439,7 @@ schema = json.dumps({
     "typeSettings": {
         "actionKey": "use-ai",
         "actionPackageId": "67ba01e9-1898-4e7d-afe7-7ebe24819a57",
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "authAccountId": "YOUR_XAI_AUTH_ACCOUNT_ID",  # Grok xAI
         "inputsBinding": [
             {"name": "useCase",      "formulaText": '"use-ai"'},
@@ -448,7 +453,7 @@ schema = json.dumps({
                 "jsonSchema": json.dumps(schema)  # double-encoded string
             }},
             # ✅ Required metadata for user-provided model
-            {"name": "_metadata", "formulaMap": {"modelSource": "user"}},
+            {"name": "_metadata", "formulaMap": {"modelSource": '"user"'}},
         ]
     }
 }
@@ -481,7 +486,7 @@ Using `formulaText` with a JSON object `{"key": val}` causes Clay to split the s
         "actionKey": "http-api-v2",
         "actionPackageId": "4299091f-3cd3-4d68-b198-0143575f471d",
         "authAccountId": "YOUR_RAPIDAPI_AUTH_ACCOUNT_ID",   # ← injects X-RapidAPI-Key + Host automatically
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "inputsBinding": [
             {"name": "method", "formulaText": '"GET"'},
             {"name": "url",    "formulaText": '"https://fresh-linkedin-scraper-api.p.rapidapi.com/api/v1/company/profile"'},
@@ -525,7 +530,7 @@ Using `formulaText` with a JSON object `{"key": val}` causes Clay to split the s
         "actionKey": "lookup-multiple-rows-in-other-table",
         "actionPackageId": "4299091f-3cd3-4d68-b198-0143575f471d",
         "actionVersion": 1,
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "inputsBinding": [
             {"name": "tableId",               "formulaText": '"t_target_table_id"'},
             {"name": "fields|targetColumn",    "formulaText": '"f_field_in_target_table"'},
@@ -562,7 +567,7 @@ Using `formulaText` with a JSON object `{"key": val}` causes Clay to split the s
         "actionKey": "instantly-v2-add-lead-to-campaign",
         "actionPackageId": "70cda03a-a576-4a6c-b3b3-55e241f828b5",
         "authAccountId": "YOUR_INSTANTLY_AUTH_ACCOUNT_ID",  # your-instantly
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "inputsBinding": [
             {"name": "email",        "formulaText": "{{f_email_field}}"},
             {"name": "first_name",   "formulaText": "{{f_first_name_field}}"},
@@ -584,7 +589,7 @@ Using `formulaText` with a JSON object `{"key": val}` causes Clay to split the s
     "typeSettings": {
         "actionKey": "http-api-v2",
         "actionPackageId": "4299091f-3cd3-4d68-b198-0143575f471d",
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "authAccountId": "YOUR_HUBSPOT_AUTH_ACCOUNT_ID",
         "inputsBinding": [
             {"name": "method", "formulaText": '"POST"'},
@@ -806,7 +811,7 @@ f_enrich = clay.create_column(table_id, {
     "typeSettings": {
         "actionKey": "enrich-company-with-mixrank-v2",
         "actionPackageId": "e251a70e-46d7-4f3a-b3ef-a211ad3d8bd2",
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "inputsBinding": [{"name": "company_identifier", "formulaText": ref(f_url)}]
     }
 })["id"]
@@ -832,7 +837,7 @@ f_qual = clay.create_column(table_id, {
     "typeSettings": {
         "actionKey": "use-ai",
         "actionPackageId": "67ba01e9-1898-4e7d-afe7-7ebe24819a57",
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "authAccountId": "YOUR_GEMINI_AUTH_ACCOUNT_ID",
         "inputsBinding": [
             {"name": "useCase",      "formulaText": '"use-ai"'},
@@ -917,16 +922,19 @@ Clay formulas use a **limited expression evaluator**, NOT full JavaScript. Key r
 **Works:**
 - Ternary expressions: `condition ? "yes" : "no"`
 - Nested ternaries: `a ? "x" : b ? "y" : "z"`
-- String methods: `.indexOf()`, `.toLowerCase()`, `.match()`, `parseInt()`
-- `let` declarations (but only the LAST expression returns — variables from earlier `let` lines are NOT accessible)
+- String methods: `.toLowerCase()`, `.split()`, `.join()`, `.slice()`, `parseInt()`, `String()`
+- Regex `.test()`: `/pattern/i.test(String({{f_id}}) || "")` — **preferred for matching**
 - Simple regex in `.match()`: `hcRaw.match(/[0-9]+/)`
+- `let` declarations (but only the LAST expression returns — variables from earlier `let` lines are NOT accessible)
 - Null coalescing: `({{f_id}} || "")`
 - Optional chaining: `{{f_id}}?.key`
 
 **Does NOT work:**
 - IIFE: `(function() { ... })()` — parses but doesn't execute correctly
 - Arrow functions with block bodies: `(x => { return x; })(val)` — block body ignored
-- `Array.some()`, `Array.filter()` — parse error
+- `.includes()`, `.indexOf()` — may cause "Error evaluating formula" on some Clay versions
+- `.some()`, `.filter()`, `.map()`, `.find()` — parse error
+- `REGEXMATCH()`, `REGEXEXTRACT()`, `LOWER()` — these are spreadsheet functions, NOT available in Clay
 - Regex word boundaries `\b` — causes parse error
 - Multi-statement `let` with semicolons — only last expression returns, earlier variables lost
 
@@ -945,10 +953,10 @@ formula = (
 # Where loc_check_expression and hc_expr are inlined field references,
 # NOT variables. The field ref repeats each time it's used.
 
-# Example: location check with 30 countries
-L = '({{f_location_id}} || "").toLowerCase()'
-loc_check = " || ".join([f'{L}.indexOf("{c}") !== -1' for c in countries])
-# This repeats L 30 times but it's the only way that works.
+# Example: location check with 30 countries — use .test() with regex
+countries = "united states|usa|canada|united kingdom|uk|germany|france|netherlands|poland|spain|italy"
+formula = f'/{countries}/i.test(String({{{{f_location_id}}}}) || "") ? "QUALIFIED" : "SKIP"'
+# Much cleaner than repeating .indexOf() 30 times
 ```
 
 **PATCH formula requires `formulaType`:** Without it, the formulaText is silently dropped:
@@ -1016,7 +1024,9 @@ clay.patch(f"/tables/{tid}/fields/{fid}", {
 | Run rejected: "Field runRecords - Required" | Missing runRecords | Always include `"runRecords": {"recordIds": [...]}` or `{"viewId": ...}` |
 | `ERROR_TOO_MANY_RUNS` | Column triggered too many times in short window | Wait ~3 minutes, then retry |
 | http-api-v2 queryString/headers broken (chars 0,1,2,3...) | Used `formulaText` with JSON object | Use `formulaMap` with per-key formulas |
-| Claygent "Unable to parse output schema" | `answerSchemaType` missing or using `formulaText: ""` | Use `formulaMap: {type: '"json"', jsonType: '"JSONSchema"', jsonSchema: '"..."'}` |
+| Claygent "Unable to parse output schema" | `answerSchemaType` + `_metadata` missing, or `jsonSchema` single-encoded | Add both inputs with `formulaMap`. `jsonSchema` must be double-encoded: `json.dumps(json.dumps(schema))`. `_metadata` must have `modelSource: '"user"'` (inner quotes). |
+| Formula "Error evaluating formula" | Used `.indexOf()`, `.includes()`, `REGEXMATCH()`, or `LOWER()` | Use `/pattern/i.test(String({{f_id}}) \|\| "")` for matching. See Formula Syntax section. |
+| Webhook columns blank despite data in source | Extraction columns are plain text, not formulas | PATCH with `formulaText: "{{source_field}}?.key"`, `formulaType: "text"`, `dataTypeSettings: {"type": "text"}` |
 | 404 "NoMatchingURL" on `/views/{view_id}/records` | Endpoint does not exist | Use 2-step: `/views/{view_id}/records/ids` then `bulk-fetch-records` |
 | `bulk-fetch-records` 400 error | Empty or missing `recordIds` | Always pass a non-empty `recordIds` array |
 | Enrich Company `ERROR_INVALID_INPUT` | Company name used instead of LinkedIn URL | Use LinkedIn company URL as `company_identifier` input |
@@ -1034,7 +1044,7 @@ clay.patch(f"/tables/{tid}/fields/{fid}", {
     "typeSettings": {
         "actionKey": "social-posts-get-post-activity-posts-and-shares",
         "actionPackageId": "b210a16b-cdaf-4cbd-ad9b-42d762cd165f",
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},
         "inputsBinding": [
             # ⚠️ Input name is "socialUrl" — NOT linkedin_url
             {"name": "socialUrl", "formulaText": ref(f_linkedin_url)},
@@ -1113,6 +1123,58 @@ r = clay.session.post(
 # Response: {"tableId": "t_xxx", "viewId": "v_xxx", "workbookId": "wb_xxx",
 #            "sourceId": "src_xxx", "isNewTable": true}
 # Triggers search automatically on creation
+```
+
+---
+
+## Webhook Source Tables — Extraction Columns
+
+When you create a table with a webhook source, Clay creates a source column that stores the full JSON payload. The individual data columns (name, headline, etc.) are **NOT automatically populated** — you must create formula extractors.
+
+**Common mistake:** Creating columns like "name", "headline" as plain text. They show up in the UI with the right names but contain NO data. All downstream columns see blanks.
+
+```python
+# After creating a webhook source table, PATCH each data column to extract from source:
+raw = clay.get_table(TABLE_ID)
+source_field_id = None
+for f in raw['table']['fields']:
+    if f['type'] == 'source':
+        source_field_id = f['id']
+        break
+
+# For each extraction column:
+for field_id, json_key in extraction_columns.items():
+    clay.session.patch(f"{BASE}/tables/{TABLE_ID}/fields/{field_id}", json={
+        "typeSettings": {
+            "formulaText": f'{{{{{source_field_id}}}}}?.{json_key}',
+            "formulaType": "text",
+            "dataTypeSettings": {"type": "text"}    # REQUIRED for PATCH
+        }
+    })
+    time.sleep(0.15)
+```
+
+---
+
+## Verification (MANDATORY after every create/patch)
+
+**Never trust a 200 status.** Clay accepts broken configs silently. After creating or patching any column:
+
+```python
+# 1. GET the column back and verify config
+raw = clay.get_table(TABLE_ID)
+for f in raw['table']['fields']:
+    if f['id'] == field_id:
+        ts = f.get('typeSettings', {})
+        inputs = ts.get('inputsBinding', [])
+        input_names = [i.get('name') for i in inputs]
+
+        # For AI columns: verify answerSchemaType exists and is double-encoded
+        for inp in inputs:
+            if inp.get('name') == 'answerSchemaType' and 'formulaMap' in inp:
+                js = inp['formulaMap'].get('jsonSchema', '')
+                parsed = json.loads(js)
+                assert isinstance(parsed, str), f"jsonSchema is {type(parsed)} — needs double encoding"
 ```
 
 ---

@@ -96,7 +96,7 @@ clay.create_action_column(table_id, {
         "actionKey": "use-ai",
         "actionPackageId": "67ba01e9-1898-4e7d-afe7-7ebe24819a57",
         "authAccountId": "YOUR_AUTH_ACCOUNT_ID",
-        "dataTypeSettings": {"type": "json"},
+        "dataTypeSettings": {"type": "text"},  # ⚠️ MUST be "text", NOT "json"
         "inputsBinding": [
             {"name": "useCase",      "formulaText": '"use-ai"'},
             {"name": "model",        "formulaText": '"gemini-2.5-flash"'},
@@ -142,8 +142,13 @@ A few things that cost hours to figure out — see `clay-api-reference.md` for t
 - **Pagination is broken** — the API always returns the same first N records regardless of offset/cursor. Use the 2-step `ids → bulk-fetch` approach in `clay_client.py`
 - **`queryString` and `headers` in HTTP API columns must use `formulaMap`, not `formulaText`** (formulaText splits JSON character-by-character)
 - **Formula columns must be created as text first**, then PATCHed with `formulaText` + `formulaType: "text"`
-- **`answerSchemaType` requires `formulaMap`** — `formulaText` silently fails
+- **`answerSchemaType` requires `formulaMap`** — `formulaText` silently fails. `jsonSchema` must be double JSON-encoded. `_metadata` with `modelSource: '"user"'` (inner quotes) is required.
+- **`dataTypeSettings` must be `{"type": "text"}`** — `{"type": "json"}` works via API but breaks Clay UI with "Could not find properties for data type json"
+- **`actionKey` must be `"use-ai"`** — using `"ai"` silently drops all `inputsBinding`
+- **Prompt escaping**: No `{single_braces}` in prompt text (Clay parses as field ref). No unescaped `"quotes"` inside formula strings (silently empties prompt). Use `Clay.formatForAIPrompt({{field}})` for field injection.
+- **Formula `.indexOf()` and `.includes()` are unreliable** — use `/pattern/i.test(String({{f_id}}) || "")` instead
 - **Lookup columns use `fields|` prefix** for filter inputs: `fields|targetColumn`, `fields|filterOperator`, `fields|rowValue`
+- **Webhook source tables need formula extractors** — data columns are NOT auto-populated; PATCH with `formulaText` + `formulaType`
 
 ---
 

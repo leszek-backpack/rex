@@ -22,7 +22,7 @@ BASE = "https://api.clay.com/v3"
 HEADERS = {
     "accept": "application/json, text/plain, */*",
     "content-type": "application/json",
-    "x-clay-frontend-version": "v20260227_221530Z_165b5326da",  # update this if requests start failing — get the current value from a Clay network request,
+    "x-clay-frontend-version": "v20260227_221530Z_165b5326da",
     "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "referer": "https://app.clay.com/",
     "origin": "https://app.clay.com",
@@ -595,7 +595,7 @@ class ClayClient:
                         if fid:
                             self.patch(f"/tables/{table_id}/fields/{fid}", {"typeSettings": formula_ts})
                     elif col_type == "action" and ts:
-                        ts.setdefault("dataTypeSettings", {"type": "json"})
+                        ts.setdefault("dataTypeSettings", {"type": "text"})
                         field_def["typeSettings"] = ts
                         result = self._create_field(table_id, view_id, field_def)
                     else:
