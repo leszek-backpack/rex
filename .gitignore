@@ -1,0 +1,14 @@
+# Session cookie — NEVER commit this
+clay-session.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+# OS
+.DS_Store
+Thumbs.db
