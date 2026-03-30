@@ -129,7 +129,7 @@ class ClayClient:
     def create_column(self, table_id: str, column_def: dict, view_id: str = None) -> dict:
         """
         Add a column to a table.
-        column_def matches the Clay JSON schema format documented in clay-api-reference.md.
+        column_def matches the Clay JSON schema format from clay-api-reference.md.
 
         Examples:
             # Text column
