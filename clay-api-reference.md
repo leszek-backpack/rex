@@ -579,7 +579,7 @@ Using `formulaText` with a JSON object `{"key": val}` causes Clay to split the s
 }
 ```
 
-**Campaign IDs** are fetched dynamically via `POST /actions/dynamicFields` with `parameterPath: "campaign"`. See `your-campaign-ids.json` for saved campaign UUIDs.
+**Campaign IDs** are fetched dynamically via `POST /actions/dynamicFields` with `parameterPath: "campaign"`.
 
 ### HTTP API v2 column (POST with JSON body, e.g. HubSpot)
 ```python

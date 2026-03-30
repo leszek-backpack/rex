@@ -9,8 +9,9 @@ __pycache__/
 venv/
 *.egg
 
-# Environment
+# Config & environment
 .env
+clay-config.json
 
 # OS
 .DS_Store
