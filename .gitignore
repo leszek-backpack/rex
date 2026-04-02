@@ -1,4 +1,4 @@
-# Session cookie — NEVER commit this
+# Auth session
 clay-session.json
 
 # Python
