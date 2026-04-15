@@ -609,6 +609,70 @@ Using `formulaText` with a JSON object `{"key": val}` causes Clay to split the s
 
 ---
 
+## Export
+
+### How CSV export works
+
+Export is **fully server-side** — no scrolling, no pagination. Two variants:
+
+```python
+# With view (respects filters)
+POST /v3/tables/{TABLE_ID}/views/{VIEW_ID}/export
+
+# All rows (ignores all filters)
+POST /v3/tables/{TABLE_ID}/export
+```
+
+Poll until done, then download from a signed S3 URL (valid 24h):
+
+```python
+GET /v3/exports/{job_id}
+# → {"status": "FINISHED", "downloadUrl": "https://s3.amazonaws.com/...", "recordsExportedCount": 556}
+```
+
+Client method: `clay.export_csv(table_id, view_id=None)` — returns the download URL. Completes in ~1 second for 556 rows.
+
+### Action column values in CSV export
+
+**Problem:** Action ("Response") columns always export as the literal string `"Response"` in the native CSV. The full enrichment JSON is intentionally omitted.
+
+**Two solutions:**
+
+**Option A — Formula columns (no code, recommended):**
+Add a formula column in Clay UI with `JSON.stringify({{f_action_field_id}})`. This gets included in the native CSV export with the full JSON. Best when you control the table.
+
+**Option B — Parallel API fetch:**
+```python
+# GET /v3/tables/{TABLE_ID}/records/{record_id}
+# → cells[field_id].externalContent.fullValue = full JSON
+
+results = clay.fetch_all_records_full(table_id, view_id, field_id, workers=20)
+# [{record_id, value, status}, ...]
+# ~27ms/record with 20 workers → 556 rows in ~15s, 10k rows in ~4.5 min
+```
+
+Note: `bulk-fetch-records` does NOT return `externalContent` — you must hit the single-record endpoint `/tables/{TABLE_ID}/records/{record_id}` individually.
+
+### Key export endpoints
+
+```
+# Start export
+POST https://api.clay.com/v3/tables/{TABLE_ID}/views/{VIEW_ID}/export  # filtered view
+POST https://api.clay.com/v3/tables/{TABLE_ID}/export                  # all rows
+
+# Poll job
+GET  https://api.clay.com/v3/exports/{job_id}
+
+# Single record with full action data
+GET  https://api.clay.com/v3/tables/{TABLE_ID}/records/{record_id}
+     → cells[field_id].externalContent.fullValue
+
+# All record IDs (no pagination)
+GET  https://api.clay.com/v3/tables/{TABLE_ID}/views/{VIEW_ID}/records/ids
+```
+
+---
+
 ## Records
 
 ### Create records

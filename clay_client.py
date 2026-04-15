@@ -172,6 +172,82 @@ class ClayClient:
         }
         return self.post("/ai-generation/formula", body)
 
+    # ── Export ───────────────────────────────────────────────────────────────
+
+    def export_csv(self, table_id: str, view_id: str = None,
+                   poll_interval: float = 2.0, timeout: int = 300) -> str:
+        """
+        Export a table (or view) as CSV and return the S3 download URL.
+
+        Native CSV export: action ("Response") columns export as the literal
+        string "Response" — NOT the full enrichment JSON. To get full data,
+        either add formula columns (JSON.stringify({{field_id}})) or use
+        fetch_all_records_full() instead.
+
+        If view_id is given, only view-filtered rows are exported.
+        If view_id is omitted, ALL table rows are exported (ignores filters).
+
+        Returns the signed S3 download URL (valid 24h).
+        """
+        url = f"/tables/{table_id}/views/{view_id}/export" if view_id else f"/tables/{table_id}/export"
+        r = self.session.post(f"https://api.clay.com/v3{url}")
+        r.raise_for_status()
+        job = r.json()
+        job_id = job["id"]
+        total = job.get("totalRecordsInViewCount", "?")
+        print(f"[clay] export job {job_id} | {total} records")
+
+        start = time.time()
+        while time.time() - start < timeout:
+            time.sleep(poll_interval)
+            sr = self.session.get(f"https://api.clay.com/v3/exports/{job_id}")
+            sr.raise_for_status()
+            data = sr.json()
+            status = data.get("status")
+            exported = data.get("recordsExportedCount", 0)
+            if status == "FINISHED":
+                print(f"[clay] export done — {exported}/{total} rows")
+                return data["downloadUrl"]
+            elif status == "FAILED":
+                raise RuntimeError(f"Export job failed: {data}")
+
+        raise TimeoutError(f"Export job {job_id} did not finish within {timeout}s")
+
+    def fetch_all_records_full(self, table_id: str, view_id: str,
+                               field_id: str, workers: int = 20) -> list[dict]:
+        """
+        Fetch the full externalContent.fullValue for an action column across
+        ALL records in a view — in parallel.
+
+        Use this when you need the raw enrichment JSON that native CSV export
+        omits (action columns export as "Response" only).
+
+        Returns list of {record_id, value} dicts. ~27ms/record with 20 workers.
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        record_ids = self.get_record_ids(table_id, view_id)
+        print(f"[clay] fetching full values for {len(record_ids)} records ({workers} workers)...")
+
+        def fetch_one(rec_id):
+            r = self.session.get(f"https://api.clay.com/v3/tables/{table_id}/records/{rec_id}")
+            r.raise_for_status()
+            cell = r.json().get("cells", {}).get(field_id, {})
+            return {
+                "record_id": rec_id,
+                "value": cell.get("externalContent", {}).get("fullValue"),
+                "status": cell.get("metadata", {}).get("status"),
+            }
+
+        results = []
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = {ex.submit(fetch_one, rid): rid for rid in record_ids}
+            for f in as_completed(futures):
+                results.append(f.result())
+
+        print(f"[clay] done — {len(results)} records fetched")
+        return results
+
     # ── Records ───────────────────────────────────────────────────────────────
 
     def get_record_ids(self, table_id: str, view_id: str) -> list[str]:
